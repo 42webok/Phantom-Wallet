@@ -1,1 +1,183 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Send 0.1 SOL to My Wallet</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: 'Segoe UI', sans-serif;
+      background: linear-gradient(to right, #0f2027, #203a43, #2c5364);
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      height: 100vh;
+      color: white;
+    }
+
+    .card {
+      background: #ffffff15;
+      padding: 30px 40px;
+      border-radius: 15px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3);
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+      backdrop-filter: blur(10px);
+    }
+
+    .card h2 {
+      margin-bottom: 20px;
+    }
+
+    .wallet-address {
+      background: #ffffff22;
+      padding: 10px;
+      border-radius: 8px;
+      font-size: 14px;
+      margin-bottom: 25px;
+      word-break: break-word;
+    }
+
+    button {
+      padding: 12px 25px;
+      background: #4caf50;
+      color: #fff;
+      border: none;
+      font-size: 16px;
+      border-radius: 8px;
+      cursor: pointer;
+      transition: 0.3s ease;
+    }
+
+    button:hover {
+      background: #3d8f3d;
+    }
+
+    .toast {
+      position: fixed;
+      top: 30px;
+      right: 30px;
+      padding: 16px 24px;
+      background: #4caf50;
+      color: white;
+      border-radius: 8px;
+      font-size: 16px;
+      box-shadow: 0 6px 16px rgba(0, 0, 0, 0.2);
+      opacity: 0;
+      transform: translateY(-20px);
+      pointer-events: none;
+      transition: all 0.4s ease;
+      z-index: 9999;
+    }
+
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+      pointer-events: auto;
+    }
+
+    .toast.error {
+      background: #f44336;
+    }
+
+    .toast button {
+      background: none;
+      border: none;
+      color: white;
+      font-size: 20px;
+      margin-left: 10px;
+      cursor: pointer;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h2>Send 0.1 SOL to My Wallet</h2>
+    <div class="wallet-address">
+      ✅ Your Wallet: <br><strong id="senderWallet">Connecting...</strong>
+    </div>
+    <button id="sendSolButton">Send 0.1 SOL</button>
+  </div>
+
+  <div id="toast" class="toast"><span id="toastMessage"></span><button onclick="hideToast()">×</button></div>
+
+  <!-- Load Solana Web3 -->
+  <script src="https://unpkg.com/@solana/web3.js@latest/lib/index.iife.js"></script>
+
+  <script>
+    const rpcUrl = "https://palpable-skilled-daylight.solana-mainnet.quiknode.pro/8082f129485e12cba9a27891813f65f3d9dcfa60/"; // 🔁 Replace with your QuickNode RPC
+    const staticRecipient = "FRRRyBJHBj6ecSoRDJbzXULbiA4BoBgPf1XcWifmdXZ7"; // 🔁 Replace with your wallet address
+    const connection = new solanaWeb3.Connection(rpcUrl, "confirmed");
+    const displayWallet = document.getElementById("senderWallet");
+
+    function showToast(message, isError = false) {
+      const toast = document.getElementById("toast");
+      const toastMsg = document.getElementById("toastMessage");
+      toastMsg.textContent = message;
+      toast.className = "toast show" + (isError ? " error" : "");
+      setTimeout(() => hideToast(), 6000);
+    }
+
+    function hideToast() {
+      document.getElementById("toast").className = "toast";
+    }
+
+    let senderWallet = null;
+
+    async function connectWallet() {
+      if (!window.solana || !window.solana.isPhantom) {
+        displayWallet.textContent = "❌ Phantom Wallet not installed.";
+        showToast("Install Phantom Wallet to continue.", true);
+        return;
+      }
+
+      try {
+        const resp = await window.solana.connect();
+        senderWallet = resp.publicKey;
+        displayWallet.textContent = senderWallet.toString();
+        showToast("✅ Wallet connected: " + senderWallet.toString());
+      } catch (err) {
+        displayWallet.textContent = "❌ Wallet connection failed.";
+        showToast("Wallet connection canceled.", true);
+      }
+    }
+
+    document.getElementById("sendSolButton").addEventListener("click", async () => {
+      if (!senderWallet) {
+        showToast("Connect your wallet first.", true);
+        return;
+      }
+
+      try {
+        const transaction = new solanaWeb3.Transaction().add(
+          solanaWeb3.SystemProgram.transfer({
+            fromPubkey: senderWallet,
+            toPubkey: new solanaWeb3.PublicKey(staticRecipient),
+            lamports: 0.1 * solanaWeb3.LAMPORTS_PER_SOL // 0.1 SOL
+          })
+        );
+
+        transaction.feePayer = senderWallet;
+        const { blockhash } = await connection.getLatestBlockhash();
+        transaction.recentBlockhash = blockhash;
+
+        const signed = await window.solana.signTransaction(transaction);
+        const signature = await connection.sendRawTransaction(signed.serialize());
+        await connection.confirmTransaction(signature);
+
+        showToast("✅ 0.1 SOL sent! TX: " + signature.slice(0, 20) + "...");
+      } catch (err) {
+        console.error(err);
+        showToast("❌ Failed: " + err.message, true);
+      }
+    });
+
+    window.addEventListener("load", connectWallet);
+  </script>
+
+</body>
+</html>
